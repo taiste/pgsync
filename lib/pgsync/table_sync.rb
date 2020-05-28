@@ -95,7 +95,7 @@ module PgSync
             sleep(opts[:sleep])
           end
         end
-      elsif !opts[:truncate] && (opts[:overwrite] || opts[:preserve] || !sql_clause.empty?)
+      elsif !opts[:truncate] && (opts[:overwrite] || opts[:preserve] || opts[:update] || !sql_clause.empty?)
         raise Error, "No primary key" unless primary_key
 
         # create a temp table
@@ -105,7 +105,18 @@ module PgSync
         # load data
         copy(copy_to_command, dest_table: temp_table, dest_fields: fields)
 
-        if opts[:preserve]
+        # TODO: Implement opts[:update] --update
+        if opts[:update]
+          raise Error, "WIP"
+          destination.execute("
+          INSERT INTO #{quote_ident_full(table)} (SELECT * FROM #{quote_ident(temp_table)})
+          ON CONFLICT (name) -- name of primary_key constraint
+          DO
+          		UPDATE -- update all other fields except primary_key
+          	  SET FIELD(table) = FIELD(temp_table)
+          	  ;
+          ")
+        elsif opts[:preserve]
           # insert into
           destination.execute("INSERT INTO #{quote_ident_full(table)} (SELECT * FROM #{quote_ident_full(temp_table)} WHERE NOT EXISTS (SELECT 1 FROM #{quote_ident_full(table)} WHERE #{quote_ident_full(table)}.#{quote_ident(primary_key)} = #{quote_ident_full(temp_table)}.#{quote_ident(primary_key)}))")
         else
